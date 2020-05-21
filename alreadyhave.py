@@ -20,6 +20,7 @@ def list_dir(dirpath):
 class AppWindow(Gtk.Window):
     def __init__(self, dirs):
         Gtk.Window.__init__(self, title="AlreadyHave")
+        self.set_default_size(-1, 600)
         
         # Box containing each of the "columns" (directories open)
         self.colsbox = Gtk.Box()
@@ -42,7 +43,7 @@ class AppWindow(Gtk.Window):
             
             # Create ListStore
             # Filename, Size, Modified Date, IsDir
-            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, int)
+            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str)
             for path in list_dir(dirpath):
                 # Get information
                 stat_info = os.stat(path)
@@ -53,7 +54,6 @@ class AppWindow(Gtk.Window):
             
             # Add tree view
             tree_view = Gtk.TreeView(list_store)
-            tree_view.set_size_request(-1, 600)
             
             for i, column_title in [(0, "Filename"), (1, "Size"), (2, "Last Modified")]:
                 renderer = Gtk.CellRendererText()
