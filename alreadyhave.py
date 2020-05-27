@@ -44,7 +44,7 @@ class Directory():
             entries_total += len(subdirs) + len(files)
             
             # Add this folder to the directory map
-            path_shortened = path[len(self.root_path):]
+            path_shortened = os.path.relpath(path, start=self.root_path)
             self.directory_map[path_shortened] = []
             
             # Add subdirectories
@@ -121,8 +121,10 @@ class AppWindow(Gtk.Window):
         
         self.dir_paths = dirs
         self.dirs = []
+        self.dirs_cd = ["."] * len(dirs)
         self.dirs_list_stores = []
         self.progress_bars = []
+        self.tree_views = []
         
         for dir_index, dirpath in enumerate(self.dir_paths):
             # Add this directory (column)
@@ -144,7 +146,7 @@ class AppWindow(Gtk.Window):
             
             # Create ListStore
             # Filename, Size, Modified Date, IsDir
-            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str)
+            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, GObject.TYPE_INT64)
             self.dirs_list_stores.append(list_store)
             """for path in list_dir(dirpath):
                 # Get information
@@ -156,6 +158,7 @@ class AppWindow(Gtk.Window):
             
             # Add tree view
             tree_view = Gtk.TreeView(list_store)
+            self.tree_views.append(tree_view)
             
             for i, column_title in [(0, "Filename"), (1, "Size"), (2, "Last Modified")]:
                 renderer = Gtk.CellRendererText()
@@ -167,6 +170,7 @@ class AppWindow(Gtk.Window):
             # Handle selections
             selected_row = tree_view.get_selection()
             selected_row.connect("changed", self.item_selected)
+            tree_view.connect("row-activated", self.row_activated)
             
             # Add ScrollableWindow to house the tree view
             tree_view_scrollable = Gtk.ScrolledWindow()
@@ -188,13 +192,24 @@ class AppWindow(Gtk.Window):
             thread.daemon = True
             thread.start()
     
+    def list_dir_contents(self, dir_id, directory):
+        """ Shows the contents of "directory" in the TreeView """
+        self.dirs_cd[dir_id] = directory
+        
+        # Clear old view
+        self.dirs_list_stores[dir_id].clear()
+        
+        # Populate
+        for file_index in self.dirs[dir_id].directory_map[directory]:
+            _file = self.dirs[dir_id].file_list[file_index]
+            self.dirs_list_stores[dir_id].append([_file.basename, _file.size,
+                str(_file.modified), file_index])
+    
     def finish_scan(self, dir_id):
         print(self.dirs[dir_id].root_path + " finished scanning "
             + str(len(self.dirs[dir_id].file_list)) + " files.")
         # Add top directory to list store
-        for file_index in self.dirs[dir_id].directory_map[""]:
-            _file = self.dirs[dir_id].file_list[file_index]
-            self.dirs_list_stores[dir_id].append([_file.basename, _file.size, str(_file.modified)])
+        self.list_dir_contents(dir_id, self.dirs_cd[dir_id])
         
         # Remove progress bar
         print("Should hide progress bar {}".format(dir_id))
@@ -204,6 +219,17 @@ class AppWindow(Gtk.Window):
         """ Sets the progress of one of the directories """
         self.progress_bars[dir_id].set_fraction(fraction)
         self.progress_bars[dir_id].set_text(text)
+    
+    def row_activated(self, tree_view, path, column):
+        dir_id = self.tree_views.index(tree_view)
+        print("Row activated:", path, "Index:", dir_id)
+        
+        file_index = self.dirs_list_stores[dir_id][path][3]
+        _file = self.dirs[dir_id].file_list[file_index]
+        
+        if _file.isdir:
+            self.list_dir_contents(dir_id, os.path.relpath(os.path.join(self.dirs_cd[dir_id], _file.basename)))
+    
     
     def item_selected(self, selection):
         """ Handle when a file is selected """
