@@ -125,6 +125,7 @@ class AppWindow(Gtk.Window):
         self.dirs_list_stores = []
         self.progress_bars = []
         self.tree_views = []
+        self.toolbar_buttons = []
         
         for dir_index, dirpath in enumerate(self.dir_paths):
             # Add this directory (column)
@@ -143,6 +144,23 @@ class AppWindow(Gtk.Window):
             entry = Gtk.Entry()
             entry.set_text(dirpath)
             thiscol.pack_start(entry, False, True, 0)
+            
+            # Add toolbar with actions
+            toolbar = Gtk.Toolbar()
+            toolbutton_up_dir = Gtk.ToolButton()
+            toolbutton_up_dir.set_label("Up")
+            toolbutton_up_dir.set_is_important(True)
+            toolbutton_up_dir.set_icon_name("gtk-go-up")
+            toolbutton_up_dir.set_sensitive(False)
+            toolbutton_up_dir.connect("clicked", self.go_up_dir, dir_index)
+            
+            # Add the "Go up a directory" button to the end of the toolbar
+            toolbar.insert(toolbutton_up_dir, -1)
+            thiscol.pack_start(toolbar, False, True, 0)
+            
+            self.toolbar_buttons.append({
+                "up": toolbutton_up_dir
+            })
             
             # Create ListStore
             # Filename, Size, Modified Date, IsDir
@@ -192,9 +210,17 @@ class AppWindow(Gtk.Window):
             thread.daemon = True
             thread.start()
     
+    def go_up_dir(self, button, dir_id):
+        if os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath("."):
+            self.list_dir_contents(dir_id, os.path.normpath(os.path.join(self.dirs_cd[dir_id], "..")))
+    
     def list_dir_contents(self, dir_id, directory):
         """ Shows the contents of "directory" in the TreeView """
         self.dirs_cd[dir_id] = directory
+        
+        # Update directory up button
+        enable_up_button = os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath(".")
+        self.toolbar_buttons[dir_id]["up"].set_sensitive(enable_up_button)
         
         # Clear old view
         self.dirs_list_stores[dir_id].clear()
