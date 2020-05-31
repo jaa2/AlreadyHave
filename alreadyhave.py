@@ -174,8 +174,8 @@ class AppWindow(Gtk.Window):
             })
             
             # Create ListStore
-            # Filename, Size, Modified Date, IsDir
-            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, GObject.TYPE_INT64)
+            # Filename, Size, Modified Date, IsDir, row_color
+            list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, GObject.TYPE_INT64, str)
             self.dirs_list_stores.append(list_store)
             """for path in list_dir(dirpath):
                 # Get information
@@ -191,7 +191,7 @@ class AppWindow(Gtk.Window):
             
             for i, column_title in [(0, "Filename"), (1, "Size"), (2, "Last Modified")]:
                 renderer = Gtk.CellRendererText()
-                column = Gtk.TreeViewColumn(column_title, renderer, text=i)
+                column = Gtk.TreeViewColumn(column_title, renderer, text=i, background=4)
                 column.set_resizable(True)
                 column.set_sort_column_id(i)
                 tree_view.append_column(column)
@@ -260,7 +260,7 @@ class AppWindow(Gtk.Window):
         for file_index in self.dirs[dir_id].directory_map[directory]:
             _file = self.dirs[dir_id].file_list[file_index]
             self.dirs_list_stores[dir_id].append([_file.basename, _file.size,
-                str(_file.modified), file_index])
+                str(_file.modified), file_index, "white"])
     
     def finish_scan(self, dir_id):
         print(self.dirs[dir_id].root_path + " finished scanning "
