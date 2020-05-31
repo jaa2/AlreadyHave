@@ -56,8 +56,12 @@ class Directory():
                 try:
                     stat_info = os.stat(os.path.join(path, subdir))
                     mdate = datetime.datetime.fromtimestamp(stat_info.st_mtime)
-                    dirfile = File(os.path.join(path_shortened, subdir), 0, mdate,
-                                   True)
+                    
+                    # A negative file size tells the renderer to ignore it
+                    dirfile = File(path=os.path.join(path_shortened, subdir),
+                                   size=-1,
+                                   modified=mdate,
+                                   isdir=True)
                     
                     # Add to data structures
                     file_index = len(self.file_list)
@@ -74,8 +78,10 @@ class Directory():
                 try:
                     stat_info = os.stat(os.path.join(path, filename))
                     mdate = datetime.datetime.fromtimestamp(stat_info.st_mtime)
-                    _file = File(os.path.join(path_shortened, filename),
-                                 stat_info.st_size, mdate, False)
+                    _file = File(path=os.path.join(path_shortened, filename),
+                                 size=stat_info.st_size,
+                                 modified=mdate,
+                                 isdir=False)
                     
                     # Add to data structures
                     file_index = len(self.file_list)
@@ -115,6 +121,19 @@ def list_dir(dirpath):
 def is_subdir(parent_dir, _dir):
     """ Tests if _dir is a subdirectory of parent_dir """
     return pathlib.Path(parent_dir).resolve() in pathlib.Path(_dir).resolve().parents
+
+def sizeof_format(num, suffix="B"):
+    """ Makes a human-readable file size.
+        Adapted from https://stackoverflow.com/questions/1094841 """
+    if num < 1024:
+        # Don't include the decimal place for bytes
+        return "{bytes} {suffix}".format(bytes=num, suffix=suffix)
+    num /= 1024.0
+    for unit in ['Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
+        if abs(num) < 1024.0:
+            return "{:3.2f} {unit}{suffix}".format(num, unit=unit, suffix=suffix)
+        num /= 1024.0
+    return "{:3.2f} {unit}{suffix}".format(num, unit=unit, suffix=suffix)
 
 class AppWindow(Gtk.Window):
     def __init__(self, dirs):
@@ -194,6 +213,9 @@ class AppWindow(Gtk.Window):
                 column = Gtk.TreeViewColumn(column_title, renderer, text=i, background=4)
                 column.set_resizable(True)
                 column.set_sort_column_id(i)
+                if column_title == "Size":
+                    # Set custom data function for file sizes
+                    column.set_cell_data_func(renderer, self.render_file_size)
                 tree_view.append_column(column)
             
             # Handle selections
@@ -220,6 +242,15 @@ class AppWindow(Gtk.Window):
             thread = threading.Thread(target=this_dir.scan, args=(update_function, finish_function))
             thread.daemon = True
             thread.start()
+
+    def render_file_size(self, tree_column, cell, tree_model, _iter, data):
+        """ Renders a file size in a human-readable format in the TreeView """
+        file_size = tree_model.get_value(_iter, 1)
+        if file_size >= 0:
+            cell.set_property("text", sizeof_format(file_size))
+        else:
+            # Hide for directories
+            cell.set_property("text", "")
 
     def set_dir(self, entry, dir_id):
         """ Set the directory for this entry, if it's valid.
