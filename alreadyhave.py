@@ -9,6 +9,10 @@ import threading
 import pathlib
 from pathlib import PurePath
 
+# For opening files on a right click
+import subprocess
+import platform
+
 all_files = {}
 
 class File():
@@ -135,6 +139,21 @@ def sizeof_format(num, suffix="B"):
         num /= 1024.0
     return "{:3.2f} {unit}{suffix}".format(num, unit=unit, suffix=suffix)
 
+def open_file_external(filepath):
+    """ Opens a file with its default application, depending on the platform.
+        Adapted from https://stackoverflow.com/questions/434597 """
+    if platform.system() == 'Darwin':
+        # macOS
+        subprocess.call(('open', filepath))
+    elif platform.system() == 'Windows':
+        # Windows
+        os.startfile(filepath)
+    elif platform.system() == 'Linux':
+        # Linux
+        subprocess.call(('xdg-open', filepath))
+    else:
+        print("I don't know how to open files on this platform yet:", platform.system())
+
 class AppWindow(Gtk.Window):
     def __init__(self, dirs):
         Gtk.Window.__init__(self, title="AlreadyHave")
@@ -225,6 +244,7 @@ class AppWindow(Gtk.Window):
             selected_row = tree_view.get_selection()
             selected_row.connect("changed", self.item_selected)
             tree_view.connect("row-activated", self.row_activated)
+            tree_view.connect("button-release-event", self.row_clicked, dir_index)
             
             # Add ScrollableWindow to house the tree view
             tree_view_scrollable = Gtk.ScrolledWindow()
@@ -321,6 +341,16 @@ class AppWindow(Gtk.Window):
         if _file.isdir:
             self.list_dir_contents(dir_id, os.path.relpath(os.path.join(self.dirs_cd[dir_id], _file.basename)))
     
+    def row_clicked(self, tree_view, event, dir_id):
+        model, tree_iter = tree_view.get_selection().get_selected()
+        if tree_iter is not None:
+            # Open if it's a right click
+            if event.button == 3:
+                filename = model[tree_iter][0]
+                full_path = os.path.join(self.dirs[dir_id].root_path,
+                                         self.dirs_cd[dir_id],
+                                         filename)
+                open_file_external(full_path)
     
     def item_selected(self, selection):
         """ Handle when a file is selected """
