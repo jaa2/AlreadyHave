@@ -6,6 +6,8 @@ import argparse
 import os
 import datetime
 import threading
+import pathlib
+from pathlib import PurePath
 
 all_files = {}
 
@@ -110,6 +112,10 @@ def list_dir(dirpath):
             print(out_list[len(out_list) - 1])
     return out_list
 
+def is_subdir(parent_dir, _dir):
+    """ Tests if _dir is a subdirectory of parent_dir """
+    return pathlib.Path(parent_dir).resolve() in pathlib.Path(_dir).resolve().parents
+
 class AppWindow(Gtk.Window):
     def __init__(self, dirs):
         Gtk.Window.__init__(self, title="AlreadyHave")
@@ -128,6 +134,7 @@ class AppWindow(Gtk.Window):
         self.progress_bars = []
         self.tree_views = []
         self.toolbar_buttons = []
+        self.entries = []
         
         for dir_index, dirpath in enumerate(self.dir_paths):
             # Add this directory (column)
@@ -144,7 +151,9 @@ class AppWindow(Gtk.Window):
             
             # Add entry (with directory name in it)
             entry = Gtk.Entry()
-            entry.set_text(dirpath)
+            entry.set_text(os.path.abspath(dirpath))
+            entry.connect("activate", self.set_dir, dir_index)
+            self.entries.append(entry)
             thiscol.pack_start(entry, False, True, 0)
             
             # Add toolbar with actions
@@ -211,6 +220,22 @@ class AppWindow(Gtk.Window):
             thread = threading.Thread(target=this_dir.scan, args=(update_function, finish_function))
             thread.daemon = True
             thread.start()
+
+    def set_dir(self, entry, dir_id):
+        """ Set the directory for this entry, if it's valid.
+            If it's not valid, set the entry's text to the current directory. """
+        good_dir = False
+        if os.path.isdir(entry.get_text()):
+            # Equal to the root directory
+            if pathlib.Path(entry.get_text()) == pathlib.Path(self.dirs[dir_id].root_path):
+                good_dir = True
+            elif is_subdir(self.dirs[dir_id].root_path, entry.get_text()):
+                good_dir = True
+        
+        if good_dir:
+            self.list_dir_contents(dir_id, os.path.relpath(entry.get_text(), start=self.dirs[dir_id].root_path))
+        else:
+            entry.set_text(os.path.abspath(os.path.join(self.dirs[dir_id].root_path, self.dirs_cd[dir_id])))
     
     def go_up_dir(self, button, dir_id):
         if os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath("."):
@@ -219,6 +244,10 @@ class AppWindow(Gtk.Window):
     def list_dir_contents(self, dir_id, directory):
         """ Shows the contents of "directory" in the TreeView """
         self.dirs_cd[dir_id] = directory
+        
+        # Update entry
+        self.entries[dir_id].set_text(os.path.abspath(
+            os.path.join(self.dirs[dir_id].root_path, self.dirs_cd[dir_id])))
         
         # Update directory up button
         enable_up_button = os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath(".")
