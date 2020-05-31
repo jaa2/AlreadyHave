@@ -216,6 +216,9 @@ class AppWindow(Gtk.Window):
                 if column_title == "Size":
                     # Set custom data function for file sizes
                     column.set_cell_data_func(renderer, self.render_file_size)
+                    # Align header and data to the right
+                    column.set_alignment(1.0)
+                    renderer.set_alignment(1.0, 0.0)
                 tree_view.append_column(column)
             
             # Handle selections
