@@ -22,7 +22,9 @@ class File():
 class Directory():
     def __init__(self, path):
         """ Initialize a Directory object with a root path """
-        self.root_path = path
+        if not os.path.isdir(path):
+            raise Exception(path + " is not a directory")
+        self.root_path = os.path.abspath(path)
         
         # Set up the data structures
         self.file_list = []
