@@ -8,6 +8,7 @@ import datetime
 import threading
 import pathlib
 from pathlib import PurePath
+import itertools
 
 # For opening files on a right click
 import subprocess
@@ -24,6 +25,10 @@ class File():
         self.isdir = isdir
         self.hash_1k = None
         self.hash_full = None
+        self.matched = False
+        # For a directory, the number of files/subdirs left to match
+        self.to_match = 0
+        self.to_match_total = 0
 
 class Directory():
     def __init__(self, path):
@@ -35,6 +40,7 @@ class Directory():
         # Set up the data structures
         self.file_list = []
         self.directory_map = {}
+        self.directory_map_file = {}
         self.filename_map = {}
         self.size_map = {}
     
@@ -71,6 +77,16 @@ class Directory():
                     file_index = len(self.file_list)
                     self.file_list.append(dirfile)
                     self.directory_map[path_shortened].append(file_index)
+                    
+                    this_rel_path = os.path.relpath(os.path.join(path_shortened, subdir), start=".")
+                    self.directory_map_file[this_rel_path] = dirfile
+                    
+                    # Increment number of files left to match for the parent directory
+                    if path_shortened in self.directory_map_file:
+                        self.directory_map_file[path_shortened].to_match += 1
+                        self.directory_map_file[path_shortened].to_match_total += 1
+                    else:
+                        print("Failed to find path_shortened for {}".format(path_shortened))
                 except (FileNotFoundError, PermissionError):
                     pass
                 
@@ -92,7 +108,16 @@ class Directory():
                     self.file_list.append(_file)
                     self.directory_map[path_shortened].append(file_index)
                     self.filename_map[_file.basename] = file_index
-                    self.size_map[_file.size] = file_index
+                    if _file.size not in self.size_map:
+                        self.size_map[_file.size] = []
+                    self.size_map[_file.size].append(file_index)
+                    
+                    # Increment number of files left to match
+                    if path_shortened in self.directory_map_file:
+                        self.directory_map_file[path_shortened].to_match += 1
+                        self.directory_map_file[path_shortened].to_match_total += 1
+                    else:
+                        print("Failed to find path_shortened for {}".format(path_shortened))
                 except (FileNotFoundError, PermissionError):
                     pass
                 
@@ -173,6 +198,9 @@ class AppWindow(Gtk.Window):
         self.tree_views = []
         self.toolbar_buttons = []
         self.entries = []
+        
+        # Number of directories currently loaded
+        self.num_dirs_loaded = 0
         
         for dir_index, dirpath in enumerate(self.dir_paths):
             # Add this directory (column)
@@ -313,8 +341,34 @@ class AppWindow(Gtk.Window):
         # Populate
         for file_index in self.dirs[dir_id].directory_map[directory]:
             _file = self.dirs[dir_id].file_list[file_index]
+            if _file.isdir:
+                # Set the color to be a bit lighter if the directory was
+                # only partially matched
+                #dir_name = os.path.normpath(os.path.join(".", os.path.dirname(_file.path)))
+                dir_name = os.path.normpath(os.path.join(".", _file.path))
+                
+                # TODO: Use a "real" path solution here
+                print("lol")
+                if dir_name.startswith("./"):
+                    print("Starts with")
+                    dir_name = dir_name[2:]
+                
+                if dir_name in self.dirs[dir_id].directory_map_file:
+                    print("{} {} / {}".format(_file.path, _file.to_match, _file.to_match_total))
+                    if _file.to_match == 0:
+                        color = "greenyellow"
+                    elif _file.to_match < _file.to_match_total:
+                        color = "palegreen"
+                    else:
+                        color = "white"
+                else:
+                    # TODO: Add warning
+                    print("Warning?? {} for {} not in {}".format(dir_name, _file.path, [self.dirs[dir_id].directory_map_file.keys()]))
+                    color = "white"
+            else:
+                color = "greenyellow" if _file.matched else "white"
             self.dirs_list_stores[dir_id].append([_file.basename, _file.size,
-                str(_file.modified), file_index, "white"])
+                str(_file.modified), file_index, color])
     
     def finish_scan(self, dir_id):
         print(self.dirs[dir_id].root_path + " finished scanning "
@@ -325,6 +379,81 @@ class AppWindow(Gtk.Window):
         # Remove progress bar
         print("Should hide progress bar {}".format(dir_id))
         self.progress_bars[dir_id].hide()
+        
+        # Begin finding potential collisions if all directories are loaded
+        self.num_dirs_loaded += 1
+        if self.num_dirs_loaded == len(self.dirs):
+            self.find_duplicates()
+    
+    def propagate_matched(self, _dir, _file, empty=False):
+        """ Propagates to parent directories that the file was matched
+            If empty is True, then the to_match_total will also be
+            decreased """
+        if self.dirs.index(_dir) == 0:
+            print("Matching for file {}".format(_file.path))
+        if _file.matched:
+            if self.dirs.index(_dir) == 0:
+                print("Returning, since it was already matched")
+            return
+        _file.matched = True
+        dir_name = os.path.normpath(os.path.join(".", os.path.dirname(_file.path)))
+        updone = False
+        while dir_name != ".":
+            #print("Matched {}".format(dir_name))
+            #_dir.directory_map_file[dir_name].matched = True
+            if updone is False:
+                if self.dirs.index(_dir) == 0:
+                    print("Decreasing to_match for {} to {} / {}".format(dir_name, _dir.directory_map_file[dir_name].to_match - 1, _dir.directory_map_file[dir_name].to_match_total))
+                _dir.directory_map_file[dir_name].to_match -= 1
+                if empty:
+                    _dir.directory_map_file[dir_name].to_match_total -= 1
+                if _dir.directory_map_file[dir_name].to_match == 0:
+                    # Propagate this change up, too
+                    self.propagate_matched(_dir, _dir.directory_map_file[dir_name])
+                updone = True
+                if "refs" in dir_name:
+                    print(self.dirs.index(_dir), dir_name, "hit from file", _file.path)
+            # Go up a directory
+            dir_name = os.path.normpath(os.path.join(dir_name, ".."))
+    
+    def find_duplicates(self):
+        """ Finds duplicate files in separate directories """
+        for dir_1, dir_2 in itertools.combinations(self.dirs, r=2):
+            print("dir_1: {} dir_2: {}".format(dir_1, dir_2))
+            for _file in dir_1.file_list:
+                # Empty directories are automatically matched
+                if _file.isdir:
+                    # TODO: Better method needed
+                    dir_fixed = _file.path
+                    if dir_fixed.startswith("./"):
+                        dir_fixed = dir_fixed[2:]
+                    if dir_fixed in dir_1.directory_map and len(dir_1.directory_map[dir_fixed]) == 0:
+                        print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
+                        self.propagate_matched(dir_1, _file, True)
+                # First, compare sizes
+                if _file.size in dir_2.size_map:
+                    #print("File size of {} for {} matches {}".format(_file.size,
+                    #    os.path.join(_file.path, _file.basename), dir_2.size_map[_file.size]))
+                    self.propagate_matched(dir_1, _file)
+                    for _file2_index in dir_2.size_map[_file.size]:
+                        _file2 = dir_2.file_list[_file2_index]
+                        #print("    {}".format(os.path.join(_file2.path, _file2.basename)))
+                        self.propagate_matched(dir_2, _file2)
+            # Fix empty directories in dir_2
+            for _file in dir_2.file_list:
+                # Empty directories are automatically matched
+                if _file.isdir:
+                    # TODO: Better method needed
+                    dir_fixed = _file.path
+                    if dir_fixed.startswith("./"):
+                        dir_fixed = dir_fixed[2:]
+                    if dir_fixed in dir_2.directory_map and len(dir_2.directory_map[dir_fixed]) == 0:
+                        print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
+                        self.propagate_matched(dir_2, _file, True)
+                
+        for i in range(len(self.dirs)):
+            GLib.idle_add(self.list_dir_contents, i, ".")
+            #self.list_dir_contents(i, ".")
         
     def set_progress(self, dir_id, fraction, text):
         """ Sets the progress of one of the directories """
