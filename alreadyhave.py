@@ -240,10 +240,18 @@ class AppWindow(Gtk.Window):
                 if dir_name in self.dirs[dir_id].directory_map_file:
                     print("{} {} / {}".format(_file.path, _file.to_match, _file.to_match_total))
                     if _file.to_match == 0:
-                        color = "greenyellow"
+                        if _file.to_match_total == 0:
+                            # Empty directory, or directory with exclusively empty subdirectories
+                            # Color: Gainsboro
+                            color = "#DCDCDC"
+                        else:
+                            # All items in this directory are matched
+                            color = "greenyellow"
                     elif _file.to_match < _file.to_match_total:
+                        # Some files in this directory are matched
                         color = "palegreen"
                     else:
+                        # No files in this directory are matched
                         color = "white"
                 else:
                     # TODO: Add warning
