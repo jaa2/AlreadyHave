@@ -25,7 +25,7 @@ class File():
     
     def get_path(self):
         """ Returns a complete PurePath of this object.
-            Runtime: O(n), where n = depth in the directory tree """
+            Runtime: O(d), where d = depth in the directory tree """
         path = PurePath(self.basename)
         parent = self.parent_dir
         while parent is not None:
@@ -33,8 +33,23 @@ class File():
             parent = parent.parent_dir
         
         return path
+    
+    def set_match(self, amount, affect_total=False):
+        """ Changes the match amount of a file's parent directories. """
+        parent = self.parent_dir
+        while parent is not None:
+            parent.to_match += amount
+            if affect_total:
+                parent.to_match_total += amount
+            parent = parent.parent_dir
 
 class Directory():
+    """ A class representing all the files in a directory and all its
+        subdirectories.
+        Main goals of this class:
+        * Be able to store files
+        * Be able to list files by directory
+        * Be able to look up files by size """
     def __init__(self, path):
         """ Initialize a Directory object with a root path """
         if not os.path.isdir(path):
