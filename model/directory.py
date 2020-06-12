@@ -4,8 +4,10 @@
 import os
 import datetime
 
+from pathlib import PurePath
+
 class File():
-    def __init__(self, path, size, modified, isdir):
+    def __init__(self, path, size, modified, isdir, parent=None):
         self.path = path
         self.basename = os.path.basename(path)
         self.size = size
@@ -14,9 +16,23 @@ class File():
         self.hash_1k = None
         self.hash_full = None
         self.matched = False
+        
         # For a directory, the number of files/subdirs left to match
         self.to_match = 0
         self.to_match_total = 0
+        
+        self.parent_dir = parent
+    
+    def get_path(self):
+        """ Returns a complete PurePath of this object.
+            Runtime: O(n), where n = depth in the directory tree """
+        path = PurePath(self.basename)
+        parent = self.parent_dir
+        while parent is not None:
+            path = PurePath.joinpath(PurePath(parent.basename), path)
+            parent = parent.parent_dir
+        
+        return path
 
 class Directory():
     def __init__(self, path):
