@@ -187,7 +187,7 @@ class Directory():
                 except (FileNotFoundError, PermissionError):
                     pass
                 
-                if entries_done % 1000 == 0 and update_function is not None:
+                if entries_done % 100 == 0 and update_function is not None:
                     update_function(entries_done, entries_total, dirfile.path)
             
             # Add files
@@ -206,7 +206,7 @@ class Directory():
                 
                 entries_done += 1
                 
-                if entries_done % 1000 == 0 and update_function is not None:
+                if entries_done % 100 == 0 and update_function is not None:
                     update_function(entries_done, entries_total, _file.path)
             
             # Reset some of these
