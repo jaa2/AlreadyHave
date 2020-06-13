@@ -230,12 +230,21 @@ class TestFileHashing(unittest.TestCase):
         # Make some files
         make_small_file(self.test_path.joinpath("root_file1"), size=100,
             char='g')
+        make_small_file(self.test_path.joinpath("root_file2"), size=100,
+            char='i')
         make_small_file(self.test_path.joinpath("1kb"), size=1024,
             char='h')
         make_small_file(self.test_path.joinpath("8kb"), size=1024 * 8,
             char='h')
         make_small_file(self.test_path.joinpath("gtbuffer"), size=int(2**16 * 3.5),
             char='h')
+        make_small_file(self.test_path.joinpath("gtbuffer2"), size=int(2**16 * 3.5),
+            char='h')
+        
+        # Make a file with the same 1k hash as 8kb but is different
+        with open(str(self.test_path.joinpath("8kb_2")), "w") as f:
+            f.write('h' * 1024)
+            f.write('g' * 1024 * 7)
     
     def test_hash_1k_smallfile(self):
         # TODO: Use constructor to fill out these parameters
@@ -287,6 +296,30 @@ class TestFileHashing(unittest.TestCase):
         self.assertEqual(hash_1k, hash_1k_exp)
         hash_full_exp = bytearray.fromhex("8290e58bcaaf60ce458c38a6858e0a843ec2011e36c818f0131486a0c8d536c6")
         self.assertEqual(hash_full, hash_full_exp)
+    
+    def test_file_equals_different_size(self):
+        # Test files that have different sizes
+        f1 = File(self.test_path.joinpath("root_file1"), 100, None, False)
+        f2 = File(self.test_path.joinpath("8kb"), 1024 * 8, None, False)
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path))
+    
+    def test_file_equals_same_size_different(self):
+        # Tests files that are different but have the same length
+        f1 = File(self.test_path.joinpath("root_file1"), 100, None, False)
+        f2 = File(self.test_path.joinpath("root_file2"), 100, None, False)
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path))
+    
+    def test_file_equals_same_1k_different(self):
+        # Tests files that have the same size and 1k hash but are different
+        f1 = File(self.test_path.joinpath("8kb"), 1024 * 8, None, False)
+        f2 = File(self.test_path.joinpath("8kb_2"), 1024 * 8, None, False)
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path))
+    
+    def test_file_equals_same(self):
+        # Tests files that are actually equal
+        f1 = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
+        f2 = File(self.test_path.joinpath("gtbuffer2"), int(2**16 * 3.5), None, False)
+        self.assertTrue(File.equals(f1, self.test_path, f2, self.test_path))
     
     @classmethod
     def tearDownClass(self):

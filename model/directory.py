@@ -84,6 +84,19 @@ class File():
             self.hash_full = h.digest()
             
         return self.hash_full
+    
+    @staticmethod
+    def equals(file1, file1_root_dir, file2, file2_root_dir):
+        """ Compares two files to see if they are equal """
+        if file1.size != file2.size:
+            return False
+        
+        if (file1.find_hash_1k(file1_root_dir) !=
+            file2.find_hash_1k(file2_root_dir)):
+            return False
+        
+        return (file1.find_hash_full(file1_root_dir) ==
+            file2.find_hash_full(file2_root_dir))
 
 class Directory():
     """ A class representing all the files in a directory and all its
