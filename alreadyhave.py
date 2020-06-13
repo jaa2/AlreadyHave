@@ -257,16 +257,9 @@ class AppWindow(Gtk.Window):
         """ Propagates to parent directories that the file was matched
             If empty is True, then the to_match_total will also be
             decreased """
-        if self.dirs.index(_dir) == 0:
-            print("Matching for file {}".format(_file.path))
         if _file.matched:
-            if self.dirs.index(_dir) == 0:
-                print("Returning, since it was already matched")
-                assert(False)
             return
         _file.matched = True
-        dir_name = _file.get_path()
-        updone = False
         if not _file.isdir:
             _file.set_match(-1, affect_total=empty)
     
@@ -275,26 +268,11 @@ class AppWindow(Gtk.Window):
         for dir_1, dir_2 in itertools.combinations(self.dirs, r=2):
             print("dir_1: {} dir_2: {}".format(dir_1, dir_2))
             for _file in dir_1.file_list:
-                # Empty directories are automatically matched
-                if _file.isdir:
-                    dir_path = _file.get_path()
-                    if dir_path in dir_1.directory_map and len(dir_1.directory_map[dir_path]) == 0:
-                        print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
-                        self.propagate_matched(dir_1, _file, True)
                 # First, compare sizes
                 if _file.size in dir_2.size_map:
                     self.propagate_matched(dir_1, _file)
                     for _file2 in dir_2.size_map[_file.size]:
                         self.propagate_matched(dir_2, _file2)
-            # Fix empty directories in dir_2
-            for _file in dir_2.file_list:
-                # Empty directories are automatically matched
-                if _file.isdir:
-                    # TODO: Better method needed
-                    dir_path = _file.get_path()
-                    if dir_path in dir_2.directory_map and len(dir_2.directory_map[dir_path]) == 0:
-                        print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
-                        self.propagate_matched(dir_2, _file, True)
                 
         for i in range(len(self.dirs)):
             GLib.idle_add(self.list_dir_contents, i, PurePath("."))
