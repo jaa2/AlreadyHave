@@ -16,21 +16,6 @@ import platform
 
 from model.directory import Directory, File
 
-def list_dir(dirpath):
-    """ Lists all the files and subdirectories in a directory.
-        Returns the list. """
-    out_list = []
-    for path, subdirs, files in os.walk(dirpath):
-        if len(subdirs) == 0 and len(files) == 0:
-            print("Empty path: " + path)
-        for subdir in subdirs:
-            out_list.append(os.path.join(path, subdir))
-            print(out_list[len(out_list) - 1])
-        for name in files:
-            out_list.append(os.path.join(path, name))
-            print(out_list[len(out_list) - 1])
-    return out_list
-
 def is_subdir(parent_dir, _dir):
     """ Tests if _dir is a subdirectory of parent_dir """
     return pathlib.Path(parent_dir).resolve() in pathlib.Path(_dir).resolve().parents
