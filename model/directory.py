@@ -63,7 +63,30 @@ class Directory():
         self.filename_map = {}
         self.size_map = {}
     
-    def scan(self, update_function = None, finish_function = None):
+    def add_file(self, file_, parent):
+        """ Adds a file to the directory structure """
+        self.file_list.append(file_)
+        
+        if file_.isdir:
+            # Create directory mapping
+            self.directory_map_file[file_.get_path()] = file_
+            self.directory_map[file_.get_path()] = []
+        else:
+            # Add to size map
+            if file_.size not in self.size_map:
+                self.size_map[file_.size] = []
+            self.size_map[file_.size].append(file_)
+        
+            # Increment the number of matches required for all parent directories
+            file_.set_match(1, True)
+            
+            # TODO: Add to filename map, if necessary
+        
+        # Add to parent directory's directory_map entry
+        if file_.parent_dir is not None:
+            self.directory_map[file_.parent_dir.get_path()].append(file_)
+    
+    def scan(self, update_function=None, finish_function=None):
         """ Scan the directory and all subdirectories for files and folders,
             periodically sending updates with update_function """
         # Files and folders left to read (initialized to 1 to read the root
