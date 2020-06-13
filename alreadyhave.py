@@ -253,7 +253,7 @@ class AppWindow(Gtk.Window):
         if self.num_dirs_loaded == len(self.dirs):
             self.find_duplicates()
     
-    def propagate_matched(self, _dir, _file, empty=False):
+    def propagate_matched(self, _file, empty=False):
         """ Propagates to parent directories that the file was matched
             If empty is True, then the to_match_total will also be
             decreased """
@@ -270,9 +270,9 @@ class AppWindow(Gtk.Window):
             for _file in dir_1.file_list:
                 # First, compare sizes
                 if _file.size in dir_2.size_map:
-                    self.propagate_matched(dir_1, _file)
+                    self.propagate_matched(_file)
                     for _file2 in dir_2.size_map[_file.size]:
-                        self.propagate_matched(dir_2, _file2)
+                        self.propagate_matched(_file2)
                 
         for i in range(len(self.dirs)):
             GLib.idle_add(self.list_dir_contents, i, PurePath("."))
