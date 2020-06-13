@@ -3,6 +3,7 @@
 
 import os
 import datetime
+import hashlib
 
 from pathlib import PurePath
 
@@ -10,6 +11,7 @@ class File():
     def __init__(self, path, size, modified, isdir, parent=None):
         self.path = path
         self.basename = os.path.basename(path)
+        # TODO: Make this constructor calculate some of these parameters
         self.size = size
         self.modified = modified
         self.isdir = isdir
@@ -43,6 +45,45 @@ class File():
             if affect_total:
                 parent.to_match_total += amount
             parent = parent.parent_dir
+    
+    def find_hash_1k(self, root_dir):
+        """ Finds a hash using the first 1KiB of data in the file """
+        if self.hash_1k is not None:
+            return self.hash_1k
+        
+        # TODO: Error handling
+        with open(root_dir.joinpath(self.get_path()), "rb") as f:
+            first_kib = f.read(1024)
+            
+            # Hash it
+            h = hashlib.sha256()
+            h.update(first_kib)
+            self.hash_1k = h.digest()
+        
+        return self.hash_1k
+    
+    def find_hash_full(self, root_dir):
+        """ Finds the complete hash of a file """
+        if self.size <= 1024:
+            # Skip reading the file again if we already have the full hash
+            self.hash_full = self.find_hash_1k(root_dir)
+            return self.hash_full
+        
+        # TODO: Error handling
+        with open(root_dir.joinpath(self.get_path()), "rb") as f:
+            # Read the file in chunks to keep memory usage low
+            buffer_size = 2 ** 16
+            h = hashlib.sha256()
+            
+            while True:
+                data = f.read(buffer_size)
+                if not data:
+                    break
+                h.update(data)
+            
+            self.hash_full = h.digest()
+            
+        return self.hash_full
 
 class Directory():
     """ A class representing all the files in a directory and all its

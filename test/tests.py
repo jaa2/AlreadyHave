@@ -217,5 +217,81 @@ class TestFile(unittest.TestCase):
         self.assertEqual(self.root_dir2.to_match, 0)
         self.assertEqual(self.root_dir2.to_match_total, 1)
 
+class TestFileHashing(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        # Make the testing directory with some sample files
+        self.test_path = PurePath("./test/testdir_2")
+        # Delete testing directory, if it exists
+        shutil.rmtree(self.test_path, ignore_errors=True)
+        # Re-make it
+        os.makedirs(str(self.test_path), exist_ok=True)
+        
+        # Make some files
+        make_small_file(self.test_path.joinpath("root_file1"), size=100,
+            char='g')
+        make_small_file(self.test_path.joinpath("1kb"), size=1024,
+            char='h')
+        make_small_file(self.test_path.joinpath("8kb"), size=1024 * 8,
+            char='h')
+        make_small_file(self.test_path.joinpath("gtbuffer"), size=int(2**16 * 3.5),
+            char='h')
+    
+    def test_hash_1k_smallfile(self):
+        # TODO: Use constructor to fill out these parameters
+        f = File(self.test_path.joinpath("root_file1"), 100, None, False)
+        hash_1k = f.find_hash_1k(self.test_path)
+        hash_exp = bytearray.fromhex("6802f092c0102fc93adae6efd0e6def32f1538bcdc997e805584cfbd5599068b")
+        self.assertEqual(hash_1k, hash_exp)
+    
+    def test_hash_full_smallfile(self):
+        f = File(self.test_path.joinpath("root_file1"), 100, None, False)
+        hash_full = f.find_hash_full(self.test_path)
+        hash_exp = bytearray.fromhex("6802f092c0102fc93adae6efd0e6def32f1538bcdc997e805584cfbd5599068b")
+        self.assertEqual(hash_full, hash_exp)
+    
+    def test_hash_1kib(self):
+        # Tests a file that is 1KiB
+        f = File(self.test_path.joinpath("1kb"), 1024, None, False)
+        hash_1k = f.find_hash_1k(self.test_path)
+        hash_full = f.find_hash_full(self.test_path)
+        hash_exp = bytearray.fromhex("d6de1fb917cd8440e759fc58a5eb0661becae24db357543ea3617e5368d4f812")
+        self.assertEqual(hash_1k, hash_exp)
+        self.assertEqual(hash_full, hash_exp)
+    
+    def test_hash_1kib(self):
+        # Tests finding hashes in the opposite order
+        f = File(self.test_path.joinpath("1kb"), 1024, None, False)
+        hash_full = f.find_hash_full(self.test_path)
+        hash_1k = f.find_hash_1k(self.test_path)
+        hash_exp = bytearray.fromhex("d6de1fb917cd8440e759fc58a5eb0661becae24db357543ea3617e5368d4f812")
+        self.assertEqual(hash_1k, hash_exp)
+        self.assertEqual(hash_full, hash_exp)
+    
+    def test_hash_8kib(self):
+        # Tests a file larger than 1KiB
+        f = File(self.test_path.joinpath("8kb"), 1024 * 8, None, False)
+        hash_1k = f.find_hash_1k(self.test_path)
+        hash_full = f.find_hash_full(self.test_path)
+        hash_1k_exp = bytearray.fromhex("d6de1fb917cd8440e759fc58a5eb0661becae24db357543ea3617e5368d4f812")
+        self.assertEqual(hash_1k, hash_1k_exp)
+        hash_full_exp = bytearray.fromhex("9606dbf8864a14d7fad3cee44128a93bb00ff5c96386139723376932e37cff8b")
+        self.assertEqual(hash_full, hash_full_exp)
+    
+    def test_hash_large(self):
+        # Tests a file larger than twice the buffer size
+        f = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
+        hash_1k = f.find_hash_1k(self.test_path)
+        hash_full = f.find_hash_full(self.test_path)
+        hash_1k_exp = bytearray.fromhex("d6de1fb917cd8440e759fc58a5eb0661becae24db357543ea3617e5368d4f812")
+        self.assertEqual(hash_1k, hash_1k_exp)
+        hash_full_exp = bytearray.fromhex("8290e58bcaaf60ce458c38a6858e0a843ec2011e36c818f0131486a0c8d536c6")
+        self.assertEqual(hash_full, hash_full_exp)
+    
+    @classmethod
+    def tearDownClass(self):
+        # Delete testing directory
+        shutil.rmtree(self.test_path, ignore_errors=True)
+
 if __name__ == "__main__":
     unittest.main()
