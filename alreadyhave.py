@@ -268,10 +268,15 @@ class AppWindow(Gtk.Window):
         for dir_1, dir_2 in itertools.combinations(self.dirs, r=2):
             print("dir_1: {} dir_2: {}".format(dir_1, dir_2))
             for _file in dir_1.file_list:
-                # First, compare sizes
-                if _file.size in dir_2.size_map:
-                    self.propagate_matched(_file)
-                    for _file2 in dir_2.size_map[_file.size]:
+                # Use the size map to reduce the number of checks required
+                # by a large proportion to begin with
+                if _file.size not in dir_2.size_map:
+                    continue
+                
+                for _file2 in dir_2.size_map[_file.size]:
+                    # Do equals check on these files
+                    if File.equals(_file, dir_1.root_path, _file2, dir_2.root_path):
+                        self.propagate_matched(_file)
                         self.propagate_matched(_file2)
                 
         for i in range(len(self.dirs)):
