@@ -172,14 +172,14 @@ class AppWindow(Gtk.Window):
         entry_dir = pathlib.Path(entry.get_text())
         if entry_dir.is_dir():
             # Equal to the root directory
-            if entry_dir == pathlib.Path(self.dirs[dir_id].root_path):
+            if entry_dir == pathlib.Path(self.dirs[dir_id].root_path).resolve():
                 good_dir = True
             elif is_subdir(self.dirs[dir_id].root_path, entry_dir):
                 good_dir = True
         
         if good_dir:
             self.list_dir_contents(dir_id, entry_dir
-                .relative_to(self.dirs[dir_id].root_path))
+                .relative_to(pathlib.Path(self.dirs[dir_id].root_path).resolve()))
         else:
             # Get a Path object so that it can be resolved
             root_path_path = pathlib.Path(self.dirs[dir_id].root_path)
