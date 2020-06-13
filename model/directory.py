@@ -51,14 +51,17 @@ class File():
         if self.hash_1k is not None:
             return self.hash_1k
         
-        # TODO: Error handling
-        with open(root_dir.joinpath(self.get_path()), "rb") as f:
-            first_kib = f.read(1024)
-            
-            # Hash it
-            h = hashlib.sha256()
-            h.update(first_kib)
-            self.hash_1k = h.digest()
+        try:
+            with open(root_dir.joinpath(self.get_path()), "rb") as f:
+                first_kib = f.read(1024)
+                
+                # Hash it
+                h = hashlib.sha256()
+                h.update(first_kib)
+                self.hash_1k = h.digest()
+        except (FileNotFoundError, PermissionError):
+            # TODO: Find a better way to solve this
+            return None
         
         return self.hash_1k
     
@@ -70,18 +73,23 @@ class File():
             return self.hash_full
         
         # TODO: Error handling
-        with open(root_dir.joinpath(self.get_path()), "rb") as f:
-            # Read the file in chunks to keep memory usage low
-            buffer_size = 2 ** 16
-            h = hashlib.sha256()
-            
-            while True:
-                data = f.read(buffer_size)
-                if not data:
-                    break
-                h.update(data)
-            
-            self.hash_full = h.digest()
+        try:
+            with open(root_dir.joinpath(self.get_path()), "rb") as f:
+                # Read the file in chunks to keep memory usage low
+                buffer_size = 2 ** 16
+                h = hashlib.sha256()
+                
+                while True:
+                    data = f.read(buffer_size)
+                    if not data:
+                        break
+                    h.update(data)
+                
+                self.hash_full = h.digest()
+        
+        except (FileNotFoundError, PermissionError):
+            # TODO: Find a better way to solve this
+            return None
             
         return self.hash_full
     
