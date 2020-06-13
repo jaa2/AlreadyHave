@@ -61,7 +61,7 @@ class AppWindow(Gtk.Window):
         
         self.dir_paths = dirs
         self.dirs = []
-        self.dirs_cd = ["."] * len(dirs)
+        self.dirs_cd = [PurePath(".")] * len(dirs)
         self.dirs_list_stores = []
         self.progress_bars = []
         self.tree_views = []
@@ -86,7 +86,7 @@ class AppWindow(Gtk.Window):
             
             # Add entry (with directory name in it)
             entry = Gtk.Entry()
-            entry.set_text(os.path.abspath(dirpath))
+            entry.set_text(str(pathlib.Path(dirpath).resolve()))
             entry.connect("activate", self.set_dir, dir_index)
             self.entries.append(entry)
             thiscol.pack_start(entry, False, True, 0)
@@ -112,13 +112,6 @@ class AppWindow(Gtk.Window):
             # Filename, Size, Modified Date, IsDir, row_color
             list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, GObject.TYPE_INT64, str)
             self.dirs_list_stores.append(list_store)
-            """for path in list_dir(dirpath):
-                # Get information
-                stat_info = os.stat(path)
-                mdate_str = str(datetime.datetime.fromtimestamp(stat_info.st_mtime))
-                if not dirpath.endswith("/"):
-                    dirpath += "/"
-                list_store.append([path[len(dirpath):], stat_info.st_size, mdate_str])"""
             
             # Add tree view
             tree_view = Gtk.TreeView(list_store)
@@ -176,51 +169,49 @@ class AppWindow(Gtk.Window):
         """ Set the directory for this entry, if it's valid.
             If it's not valid, set the entry's text to the current directory. """
         good_dir = False
-        if os.path.isdir(entry.get_text()):
+        entry_dir = pathlib.Path(entry.get_text())
+        if entry_dir.is_dir():
             # Equal to the root directory
-            if pathlib.Path(entry.get_text()) == pathlib.Path(self.dirs[dir_id].root_path):
+            if entry_dir == pathlib.Path(self.dirs[dir_id].root_path):
                 good_dir = True
-            elif is_subdir(self.dirs[dir_id].root_path, entry.get_text()):
+            elif is_subdir(self.dirs[dir_id].root_path, entry_dir):
                 good_dir = True
         
         if good_dir:
-            self.list_dir_contents(dir_id, os.path.relpath(entry.get_text(), start=self.dirs[dir_id].root_path))
+            self.list_dir_contents(dir_id, entry_dir
+                .relative_to(self.dirs[dir_id].root_path))
         else:
-            entry.set_text(os.path.abspath(os.path.join(self.dirs[dir_id].root_path, self.dirs_cd[dir_id])))
+            # Get a Path object so that it can be resolved
+            root_path_path = pathlib.Path(self.dirs[dir_id].root_path)
+            entry.set_text(str(root_path_path.joinpath(self.dirs_cd[dir_id]).resolve()))
     
     def go_up_dir(self, button, dir_id):
-        if os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath("."):
-            self.list_dir_contents(dir_id, os.path.normpath(os.path.join(self.dirs_cd[dir_id], "..")))
+        if self.dirs_cd[dir_id] != PurePath("."):
+            self.list_dir_contents(dir_id, self.dirs_cd[dir_id].parent)
     
     def list_dir_contents(self, dir_id, directory):
         """ Shows the contents of "directory" in the TreeView """
         self.dirs_cd[dir_id] = directory
         
         # Update entry
-        self.entries[dir_id].set_text(os.path.abspath(
-            os.path.join(self.dirs[dir_id].root_path, self.dirs_cd[dir_id])))
+        root_path_path = pathlib.Path(self.dirs[dir_id].root_path)
+        self.entries[dir_id].set_text(
+            str(root_path_path.joinpath(self.dirs_cd[dir_id]).resolve()))
         
         # Update directory up button
-        enable_up_button = os.path.normpath(self.dirs_cd[dir_id]) != os.path.normpath(".")
+        enable_up_button = self.dirs_cd[dir_id] != PurePath(".")
         self.toolbar_buttons[dir_id]["up"].set_sensitive(enable_up_button)
         
         # Clear old view
         self.dirs_list_stores[dir_id].clear()
         
         # Populate
-        for file_index in self.dirs[dir_id].directory_map[directory]:
-            _file = self.dirs[dir_id].file_list[file_index]
+        for file_index in range(len(self.dirs[dir_id].directory_map[directory])):
+            _file = self.dirs[dir_id].directory_map[directory][file_index]
             if _file.isdir:
                 # Set the color to be a bit lighter if the directory was
                 # only partially matched
-                #dir_name = os.path.normpath(os.path.join(".", os.path.dirname(_file.path)))
-                dir_name = os.path.normpath(os.path.join(".", _file.path))
-                
-                # TODO: Use a "real" path solution here
-                print("lol")
-                if dir_name.startswith("./"):
-                    print("Starts with")
-                    dir_name = dir_name[2:]
+                dir_name = _file.get_path()
                 
                 if dir_name in self.dirs[dir_id].directory_map_file:
                     print("{} {} / {}".format(_file.path, _file.to_match, _file.to_match_total))
@@ -239,7 +230,7 @@ class AppWindow(Gtk.Window):
                         # No files in this directory are matched
                         color = "white"
                 else:
-                    # TODO: Add warning
+                    # TODO: Remove
                     print("Warning?? {} for {} not in {}".format(dir_name, _file.path, [self.dirs[dir_id].directory_map_file.keys()]))
                     color = "white"
             else:
@@ -248,7 +239,7 @@ class AppWindow(Gtk.Window):
                 str(_file.modified), file_index, color])
     
     def finish_scan(self, dir_id):
-        print(self.dirs[dir_id].root_path + " finished scanning "
+        print(str(self.dirs[dir_id].root_path) + " finished scanning "
             + str(len(self.dirs[dir_id].file_list)) + " files.")
         # Add top directory to list store
         self.list_dir_contents(dir_id, self.dirs_cd[dir_id])
@@ -271,27 +262,13 @@ class AppWindow(Gtk.Window):
         if _file.matched:
             if self.dirs.index(_dir) == 0:
                 print("Returning, since it was already matched")
+                assert(False)
             return
         _file.matched = True
-        dir_name = os.path.normpath(os.path.join(".", os.path.dirname(_file.path)))
+        dir_name = _file.get_path()
         updone = False
-        while dir_name != ".":
-            #print("Matched {}".format(dir_name))
-            #_dir.directory_map_file[dir_name].matched = True
-            if updone is False:
-                if self.dirs.index(_dir) == 0:
-                    print("Decreasing to_match for {} to {} / {}".format(dir_name, _dir.directory_map_file[dir_name].to_match - 1, _dir.directory_map_file[dir_name].to_match_total))
-                _dir.directory_map_file[dir_name].to_match -= 1
-                if empty:
-                    _dir.directory_map_file[dir_name].to_match_total -= 1
-                if _dir.directory_map_file[dir_name].to_match == 0:
-                    # Propagate this change up, too
-                    self.propagate_matched(_dir, _dir.directory_map_file[dir_name])
-                updone = True
-                if "refs" in dir_name:
-                    print(self.dirs.index(_dir), dir_name, "hit from file", _file.path)
-            # Go up a directory
-            dir_name = os.path.normpath(os.path.join(dir_name, ".."))
+        if not _file.isdir:
+            _file.set_match(-1, affect_total=empty)
     
     def find_duplicates(self):
         """ Finds duplicate files in separate directories """
@@ -300,37 +277,27 @@ class AppWindow(Gtk.Window):
             for _file in dir_1.file_list:
                 # Empty directories are automatically matched
                 if _file.isdir:
-                    # TODO: Better method needed
-                    dir_fixed = _file.path
-                    if dir_fixed.startswith("./"):
-                        dir_fixed = dir_fixed[2:]
-                    if dir_fixed in dir_1.directory_map and len(dir_1.directory_map[dir_fixed]) == 0:
+                    dir_path = _file.get_path()
+                    if dir_path in dir_1.directory_map and len(dir_1.directory_map[dir_path]) == 0:
                         print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
                         self.propagate_matched(dir_1, _file, True)
                 # First, compare sizes
                 if _file.size in dir_2.size_map:
-                    #print("File size of {} for {} matches {}".format(_file.size,
-                    #    os.path.join(_file.path, _file.basename), dir_2.size_map[_file.size]))
                     self.propagate_matched(dir_1, _file)
-                    for _file2_index in dir_2.size_map[_file.size]:
-                        _file2 = dir_2.file_list[_file2_index]
-                        #print("    {}".format(os.path.join(_file2.path, _file2.basename)))
+                    for _file2 in dir_2.size_map[_file.size]:
                         self.propagate_matched(dir_2, _file2)
             # Fix empty directories in dir_2
             for _file in dir_2.file_list:
                 # Empty directories are automatically matched
                 if _file.isdir:
                     # TODO: Better method needed
-                    dir_fixed = _file.path
-                    if dir_fixed.startswith("./"):
-                        dir_fixed = dir_fixed[2:]
-                    if dir_fixed in dir_2.directory_map and len(dir_2.directory_map[dir_fixed]) == 0:
+                    dir_path = _file.get_path()
+                    if dir_path in dir_2.directory_map and len(dir_2.directory_map[dir_path]) == 0:
                         print(_file.path, "seems to be empty; its to_match is ", _file.to_match)
                         self.propagate_matched(dir_2, _file, True)
                 
         for i in range(len(self.dirs)):
-            GLib.idle_add(self.list_dir_contents, i, ".")
-            #self.list_dir_contents(i, ".")
+            GLib.idle_add(self.list_dir_contents, i, PurePath("."))
         
     def set_progress(self, dir_id, fraction, text):
         """ Sets the progress of one of the directories """
@@ -342,10 +309,10 @@ class AppWindow(Gtk.Window):
         print("Row activated:", path, "Index:", dir_id)
         
         file_index = self.dirs_list_stores[dir_id][path][3]
-        _file = self.dirs[dir_id].file_list[file_index]
+        _file = self.dirs[dir_id].directory_map[self.dirs_cd[dir_id]][file_index]
         
         if _file.isdir:
-            self.list_dir_contents(dir_id, os.path.relpath(os.path.join(self.dirs_cd[dir_id], _file.basename)))
+            self.list_dir_contents(dir_id, _file.get_path())
     
     def row_clicked(self, tree_view, event, dir_id):
         model, tree_iter = tree_view.get_selection().get_selected()
@@ -353,9 +320,9 @@ class AppWindow(Gtk.Window):
             # Open if it's a right click
             if event.button == 3:
                 filename = model[tree_iter][0]
-                full_path = os.path.join(self.dirs[dir_id].root_path,
-                                         self.dirs_cd[dir_id],
-                                         filename)
+                full_path = (self.dirs[dir_id].root_path
+                            .joinpath(self.dirs_cd[dir_id])
+                            .joinpath(PurePath(filename)))
                 open_file_external(full_path)
     
     def item_selected(self, selection):

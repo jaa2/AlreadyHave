@@ -17,7 +17,8 @@ class File():
         self.hash_full = None
         self.matched = False
         
-        # For a directory, the number of files/subdirs left to match
+        # For a directory, the number of files (not necessarily subdirectories)
+        # left to match
         self.to_match = 0
         self.to_match_total = 0
         
@@ -52,9 +53,7 @@ class Directory():
         * Be able to look up files by size """
     def __init__(self, path):
         """ Initialize a Directory object with a root path """
-        if not os.path.isdir(path):
-            raise Exception(path + " is not a directory")
-        self.root_path = os.path.abspath(path)
+        self.root_path = PurePath(path)
         
         # Set up the data structures
         self.file_list = []
@@ -63,7 +62,7 @@ class Directory():
         self.filename_map = {}
         self.size_map = {}
     
-    def add_file(self, file_, parent):
+    def add_file(self, file_):
         """ Adds a file to the directory structure """
         self.file_list.append(file_)
         
@@ -95,13 +94,20 @@ class Directory():
         # Files and folders read so far
         entries_done = 0
         
+        # Add root folder
+        root_stat_info = os.stat(self.root_path)
+        root_folder = File(path=".",
+            size=-1,
+            modified=datetime.datetime.fromtimestamp(root_stat_info.st_mtime),
+            isdir=True,
+            parent=None)
+        self.add_file(root_folder)
+        
         for path, subdirs, files in os.walk(self.root_path):
             entries_done += 1
             entries_total += len(subdirs) + len(files)
             
-            # Add this folder to the directory map
-            path_shortened = os.path.relpath(path, start=self.root_path)
-            self.directory_map[path_shortened] = []
+            this_parent_dir = self.directory_map_file[PurePath(path).relative_to(self.root_path)]
             
             # Add subdirectories
             for subdir in subdirs:
@@ -110,25 +116,12 @@ class Directory():
                     mdate = datetime.datetime.fromtimestamp(stat_info.st_mtime)
                     
                     # A negative file size tells the renderer to ignore it
-                    dirfile = File(path=os.path.join(path_shortened, subdir),
+                    dirfile = File(path=os.path.join(path, subdir),
                                    size=-1,
                                    modified=mdate,
-                                   isdir=True)
-                    
-                    # Add to data structures
-                    file_index = len(self.file_list)
-                    self.file_list.append(dirfile)
-                    self.directory_map[path_shortened].append(file_index)
-                    
-                    this_rel_path = os.path.relpath(os.path.join(path_shortened, subdir), start=".")
-                    self.directory_map_file[this_rel_path] = dirfile
-                    
-                    # Increment number of files left to match for the parent directory
-                    if path_shortened in self.directory_map_file:
-                        self.directory_map_file[path_shortened].to_match += 1
-                        self.directory_map_file[path_shortened].to_match_total += 1
-                    else:
-                        print("Failed to find path_shortened for {}".format(path_shortened))
+                                   isdir=True,
+                                   parent=this_parent_dir)
+                    self.add_file(dirfile)
                 except (FileNotFoundError, PermissionError):
                     pass
                 
@@ -140,26 +133,12 @@ class Directory():
                 try:
                     stat_info = os.stat(os.path.join(path, filename))
                     mdate = datetime.datetime.fromtimestamp(stat_info.st_mtime)
-                    _file = File(path=os.path.join(path_shortened, filename),
+                    _file = File(path=os.path.join(path, filename),
                                  size=stat_info.st_size,
                                  modified=mdate,
-                                 isdir=False)
-                    
-                    # Add to data structures
-                    file_index = len(self.file_list)
-                    self.file_list.append(_file)
-                    self.directory_map[path_shortened].append(file_index)
-                    self.filename_map[_file.basename] = file_index
-                    if _file.size not in self.size_map:
-                        self.size_map[_file.size] = []
-                    self.size_map[_file.size].append(file_index)
-                    
-                    # Increment number of files left to match
-                    if path_shortened in self.directory_map_file:
-                        self.directory_map_file[path_shortened].to_match += 1
-                        self.directory_map_file[path_shortened].to_match_total += 1
-                    else:
-                        print("Failed to find path_shortened for {}".format(path_shortened))
+                                 isdir=False,
+                                 parent=this_parent_dir)
+                    self.add_file(_file)
                 except (FileNotFoundError, PermissionError):
                     pass
                 
@@ -171,5 +150,9 @@ class Directory():
             # Reset some of these
             entries_done -= len(files) + 1
             entries_total -= len(files) + 1
-        update_function(1, 1, None)
-        finish_function()
+        
+        if update_function is not None:
+            update_function(1, 1, None)
+        
+        if finish_function is not None:
+            finish_function()
