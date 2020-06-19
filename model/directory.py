@@ -9,7 +9,6 @@ from pathlib import PurePath
 
 class File():
     def __init__(self, path, size, modified, isdir, parent=None):
-        self.path = path
         self.basename = os.path.basename(path)
         # TODO: Make this constructor calculate some of these parameters
         self.size = size
@@ -210,7 +209,8 @@ class Directory():
                     pass
                 
                 if entries_done % 100 == 0 and update_function is not None:
-                    update_function(entries_done, entries_total, dirfile.path)
+                    update_function(entries_done, entries_total,
+                        self.root_path.joinpath(dirfile.get_path()))
             
             # Add files
             for filename in files:
@@ -229,7 +229,8 @@ class Directory():
                 entries_done += 1
                 
                 if entries_done % 100 == 0 and update_function is not None:
-                    update_function(entries_done, entries_total, _file.path)
+                    update_function(entries_done, entries_total,
+                        self.root_path.joinpath(_file.get_path()))
             
             # Reset some of these
             entries_done -= len(files) + 1

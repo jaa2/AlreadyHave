@@ -217,7 +217,8 @@ class AppWindow(Gtk.Window):
                 dir_name = _file.get_path()
                 
                 if dir_name in self.dirs[dir_id].directory_map_file:
-                    print("{} {} / {}".format(_file.path, _file.to_match, _file.to_match_total))
+                    print("{} {} / {}".format(_file.get_path(), _file.to_match,
+                        _file.to_match_total))
                     if _file.to_match == 0:
                         if _file.to_match_total == 0:
                             # Empty directory, or directory with exclusively empty subdirectories
@@ -234,7 +235,9 @@ class AppWindow(Gtk.Window):
                         color = "white"
                 else:
                     # TODO: Remove
-                    print("Warning?? {} for {} not in {}".format(dir_name, _file.path, [self.dirs[dir_id].directory_map_file.keys()]))
+                    print("Warning?? {} for {} not in {}"
+                        .format(dir_name, _file.get_path(),
+                                [self.dirs[dir_id].directory_map_file.keys()]))
                     color = "white"
             else:
                 color = "greenyellow" if _file.matched else "white"
@@ -289,7 +292,7 @@ class AppWindow(Gtk.Window):
     def set_progress(self, dir_id, fraction, text):
         """ Sets the progress of one of the directories """
         self.progress_bars[dir_id].set_fraction(fraction)
-        self.progress_bars[dir_id].set_text(text)
+        self.progress_bars[dir_id].set_text(str(text))
     
     def row_activated(self, tree_view, path, column):
         dir_id = self.tree_views.index(tree_view)
