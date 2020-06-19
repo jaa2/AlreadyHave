@@ -234,8 +234,16 @@ class TestFileHashing(unittest.TestCase):
             char='i')
         make_small_file(self.test_path.joinpath("1kb"), size=1024,
             char='h')
-        make_small_file(self.test_path.joinpath("8kb"), size=1024 * 8,
+        
+        # Make an 8kb file
+        self._8kb_file_path = self.test_path.joinpath("8kb")
+        make_small_file(self._8kb_file_path, size=1024 * 8,
             char='h')
+        # Copy the 8kb file into the subdirectory, preserving the modification time
+        self.test_path_sub = self.test_path.joinpath("subdir")
+        os.makedirs(str(self.test_path_sub), exist_ok=True)
+        shutil.copy2(self._8kb_file_path, self.test_path_sub)
+        
         make_small_file(self.test_path.joinpath("gtbuffer"), size=int(2**16 * 3.5),
             char='h')
         make_small_file(self.test_path.joinpath("gtbuffer2"), size=int(2**16 * 3.5),
@@ -307,19 +315,71 @@ class TestFileHashing(unittest.TestCase):
         # Tests files that are different but have the same length
         f1 = File(self.test_path.joinpath("root_file1"), 100, None, False)
         f2 = File(self.test_path.joinpath("root_file2"), 100, None, False)
-        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path))
+        match_reqs = {
+            "hash": True
+        }
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
     
     def test_file_equals_same_1k_different(self):
         # Tests files that have the same size and 1k hash but are different
         f1 = File(self.test_path.joinpath("8kb"), 1024 * 8, None, False)
         f2 = File(self.test_path.joinpath("8kb_2"), 1024 * 8, None, False)
-        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path))
+        match_reqs = {
+            "hash": True
+        }
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
     
     def test_file_equals_same(self):
         # Tests files that are actually equal
         f1 = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
         f2 = File(self.test_path.joinpath("gtbuffer2"), int(2**16 * 3.5), None, False)
-        self.assertTrue(File.equals(f1, self.test_path, f2, self.test_path))
+        match_reqs = {
+            "hash": True
+        }
+        self.assertTrue(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
+    
+    def test_file_equals_same_contents_different_names(self):
+        # Tests files that have equal contents but different names, given that the
+        # match requirements require the same name
+        f1 = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
+        f2 = File(self.test_path.joinpath("gtbuffer2"), int(2**16 * 3.5), None, False)
+        match_reqs = {
+            "hash": True,
+            "filename": True
+        }
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
+    
+    def test_file_equals_same_file(self):
+        # Tests the same file against itself
+        f1 = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
+        match_reqs = {
+            "hash": True,
+            "filename": True,
+            "modtime": True
+        }
+        self.assertTrue(File.equals(f1, self.test_path, f1, self.test_path, match_reqs))
+    
+    def test_file_equals_same_contents_different_names(self):
+        # Tests files that have equal contents but different names, given that the
+        # match requirements require the same name
+        f1 = File(self.test_path.joinpath("gtbuffer"), int(2**16 * 3.5), None, False)
+        f2 = File(self.test_path.joinpath("gtbuffer2"), int(2**16 * 3.5), None, False)
+        match_reqs = {
+            "hash": True,
+            "filename": True
+        }
+        self.assertFalse(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
+    
+    def test_file_equals_all_copied_file(self):
+        # Tests a file that has been copied to a subdirectory
+        f1 = File(self.test_path.joinpath("8kb"), 1024 * 8, None, False)
+        f2 = File(self.test_path_sub.joinpath("8kb"), 1024 * 8, None, False)
+        match_reqs = {
+            "hash": True,
+            "filename": True,
+            "modtime": True
+        }
+        self.assertTrue(File.equals(f1, self.test_path, f2, self.test_path, match_reqs))
     
     @classmethod
     def tearDownClass(self):

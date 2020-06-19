@@ -94,17 +94,39 @@ class File():
         return self.hash_full
     
     @staticmethod
-    def equals(file1, file1_root_dir, file2, file2_root_dir):
-        """ Compares two files to see if they are equal """
+    def equals(file1, file1_root_dir, file2, file2_root_dir, match_reqs={}):
+        """ Compares two files to see if they are equal
+            match_reqs: Dictionary indicating which file properties must be
+                        equal to match files.
+                        May include 'hash', 'filename', and 'modtime' as keys
+                        with boolean values. """
+        
+        # Match by size
         if file1.size != file2.size:
             return False
         
-        if (file1.find_hash_1k(file1_root_dir) !=
-            file2.find_hash_1k(file2_root_dir)):
-            return False
+        # Match by filename (basename)
+        if match_reqs.get("filename"):
+            if file1.basename != file2.basename:
+                return False
         
-        return (file1.find_hash_full(file1_root_dir) ==
-            file2.find_hash_full(file2_root_dir))
+        # Match by modification time
+        if match_reqs.get("modtime"):
+            if file1.modified != file2.modified:
+                return False
+        
+        # Match by hash
+        if match_reqs.get("hash"):
+            if (file1.find_hash_1k(file1_root_dir) !=
+                file2.find_hash_1k(file2_root_dir)):
+                return False
+            
+            if (file1.find_hash_full(file1_root_dir) !=
+                file2.find_hash_full(file2_root_dir)):
+                return False
+        
+        # Matched!
+        return True
 
 class Directory():
     """ A class representing all the files in a directory and all its
