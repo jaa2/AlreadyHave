@@ -49,9 +49,10 @@ def open_file_external(filepath):
         print("I don't know how to open files on this platform yet:", platform.system())
 
 class AppWindow(Gtk.Window):
-    def __init__(self, dirs):
+    def __init__(self, dirs, match_reqs):
         Gtk.Window.__init__(self, title="AlreadyHave")
         self.set_default_size(1200, 600)
+        
         
         # Box containing each of the "columns" (directories open)
         self.colsbox = Gtk.Box()
@@ -60,6 +61,8 @@ class AppWindow(Gtk.Window):
         self.add(self.colsbox)
         
         self.dir_paths = dirs
+        # Match requirements
+        self.match_reqs = match_reqs
         self.dirs = []
         self.dirs_cd = [PurePath(".")] * len(dirs)
         self.dirs_list_stores = []
@@ -275,7 +278,8 @@ class AppWindow(Gtk.Window):
                 
                 for _file2 in dir_2.size_map[_file.size]:
                     # Do equals check on these files
-                    if File.equals(_file, dir_1.root_path, _file2, dir_2.root_path):
+                    if File.equals(_file, dir_1.root_path, _file2, dir_2.root_path,
+                                   self.match_reqs):
                         self.propagate_matched(_file)
                         self.propagate_matched(_file2)
                 
@@ -317,13 +321,52 @@ class AppWindow(Gtk.Window):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("dirs", nargs="*", help="Directories to compare")
+    # Match by hash
+    parser.add_argument("--match-hash", "-mh",
+                        help="Require file hashes to match",
+                        dest="match_hash",
+                        action="store_true")
+    parser.add_argument("--no-match-hash", "-nmh",
+                        help="Don't require file hashes to match",
+                        dest="match_hash",
+                        action="store_false")
+    parser.set_defaults(match_hash=False)
+    # Match by filename
+    parser.add_argument("--match-filename", "-mf",
+                        help="Require filenames to match",
+                        dest="match_filename",
+                        action="store_true")
+    parser.add_argument("--no-match-filename", "-nmf",
+                        help="Don't require filenames to match",
+                        dest="match_filename",
+                        action="store_false")
+    parser.set_defaults(match_filename=True)
+    # Match by modtime
+    parser.add_argument("--match-modtime", "-mt",
+                        help="Require modification times to match",
+                        dest="match_modtime",
+                        action="store_true")
+    parser.add_argument("--no-match-modtime", "-nmt",
+                        help="Don't require modification times to match",
+                        dest="match_modtime",
+                        action="store_false")
+    parser.set_defaults(match_modtime=False)
     args = parser.parse_args()
+    
+    # Add the current directory
     while len(args.dirs) < 2:
         args.dirs.append(".")
     
+    # Find required matching types
+    match_reqs = {
+        "hash": args.match_hash,
+        "filename": args.match_filename,
+        "modtime": args.match_modtime
+    }
+    
     # Unnecessary for PyGObject >= 3.10.2
     #GObject.threads_init()
-    window = AppWindow(args.dirs)
+    window = AppWindow(args.dirs, match_reqs)
     window.connect("destroy", Gtk.main_quit)
     window.show_all()
     Gtk.main()
