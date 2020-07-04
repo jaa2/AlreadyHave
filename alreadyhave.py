@@ -194,6 +194,18 @@ class AppWindow(Gtk.Window):
         if self.dirs_cd[dir_id] != PurePath("."):
             self.list_dir_contents(dir_id, self.dirs_cd[dir_id].parent)
     
+    def ignore_file(self, file_):
+        """ Returns whether this file should be ignored """
+        if file_.size == 0 and not self.match_reqs.get("zero"):
+            return True
+        
+        # Hide .git folder
+        # TODO: Move to configurable settings
+        if ".git" in file_.get_path().parts:
+            return True
+        
+        return False
+    
     def list_dir_contents(self, dir_id, directory):
         """ Shows the contents of "directory" in the TreeView """
         self.dirs_cd[dir_id] = directory
@@ -243,6 +255,8 @@ class AppWindow(Gtk.Window):
                     color = "white"
             else:
                 color = "greenyellow" if _file.matched else "white"
+                if self.ignore_file(_file):
+                    color = "#DCDCDC"
             self.dirs_list_stores[dir_id].append([_file.basename, _file.size,
                 str(_file.modified), file_index, color])
     
@@ -282,6 +296,13 @@ class AppWindow(Gtk.Window):
                     continue
                 
                 for _file2 in dir_2.size_map[_file.size]:
+                    # Do not count ignored files
+                    file1_ignore = self.ignore_file(_file)
+                    file2_ignore = self.ignore_file(_file2)
+                    
+                    if file1_ignore or file2_ignore:
+                        continue
+                    
                     # Do equals check on these files
                     if File.equals(_file, dir_1.root_path, _file2, dir_2.root_path,
                                    self.match_reqs):
@@ -300,6 +321,18 @@ class AppWindow(Gtk.Window):
                             # Add both
                             self.match_dict[_file] = [_file, _file2]
                             self.match_dict[_file2] = self.match_dict[_file]
+            
+            # Ignore files that were not matched before
+            for file_ in dir_1.file_list:
+                file1_ignore = self.ignore_file(file_)
+                if file1_ignore:
+                    print(file_.get_path(), "ignored")
+                    self.propagate_matched(file_, file1_ignore)
+            for file_ in dir_2.file_list:
+                file1_ignore = self.ignore_file(file_)
+                if file1_ignore:
+                    print(file_.get_path(), "ignored")
+                    self.propagate_matched(file_, file1_ignore)
                 
         for i in range(len(self.dirs)):
             GLib.idle_add(self.list_dir_contents, i, PurePath("."))
@@ -402,6 +435,12 @@ if __name__ == "__main__":
                         dest="match_modtime",
                         action="store_false")
     parser.set_defaults(match_modtime=False)
+    # Match zero-length files
+    parser.add_argument("--match-zerolength", "-mzl",
+                        help="Match zero-length files (off by default)",
+                        dest="match_zerolength",
+                        action="store_true")
+    parser.set_defaults(match_zerolength=False)
     args = parser.parse_args()
     
     # Add the current directory
@@ -412,7 +451,8 @@ if __name__ == "__main__":
     match_reqs = {
         "hash": args.match_hash,
         "filename": args.match_filename,
-        "modtime": args.match_modtime
+        "modtime": args.match_modtime,
+        "zero": args.match_zerolength
     }
     
     # Unnecessary for PyGObject >= 3.10.2
