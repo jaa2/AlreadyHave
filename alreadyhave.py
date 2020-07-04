@@ -71,6 +71,9 @@ class AppWindow(Gtk.Window):
         self.toolbar_buttons = []
         self.entries = []
         
+        # Match dictionary
+        self.match_dict = {}
+        
         # Number of directories currently loaded
         self.num_dirs_loaded = 0
         
@@ -135,9 +138,8 @@ class AppWindow(Gtk.Window):
             
             # Handle selections
             selected_row = tree_view.get_selection()
-            selected_row.connect("changed", self.item_selected)
             tree_view.connect("row-activated", self.row_activated)
-            tree_view.connect("button-release-event", self.row_clicked, dir_index)
+            tree_view.connect("button-press-event", self.row_button_press, dir_index)
             
             # Add ScrollableWindow to house the tree view
             tree_view_scrollable = Gtk.ScrolledWindow()
@@ -285,6 +287,19 @@ class AppWindow(Gtk.Window):
                                    self.match_reqs):
                         self.propagate_matched(_file)
                         self.propagate_matched(_file2)
+                        
+                        # Add to match dictionary
+                        if _file in self.match_dict:
+                            if _file2 not in self.match_dict:
+                                self.match_dict[_file].append(_file2)
+                                self.match_dict[_file2] = self.match_dict[_file]
+                        elif _file2 in self.match_dict:
+                            self.match_dict[_file2].append(_file)
+                            self.match_dict[_file] = self.match_dict[_file2]
+                        else:
+                            # Add both
+                            self.match_dict[_file] = [_file, _file2]
+                            self.match_dict[_file2] = self.match_dict[_file]
                 
         for i in range(len(self.dirs)):
             GLib.idle_add(self.list_dir_contents, i, PurePath("."))
@@ -304,22 +319,55 @@ class AppWindow(Gtk.Window):
         if _file.isdir:
             self.list_dir_contents(dir_id, _file.get_path())
     
-    def row_clicked(self, tree_view, event, dir_id):
-        model, tree_iter = tree_view.get_selection().get_selected()
+    def row_button_press(self, tree_view, event, dir_id):
+        selection = tree_view.get_selection()
+        
+        # Re-position selection
+        path_full = tree_view.get_path_at_pos(event.x, event.y)
+        if path_full is None:
+            return
+        new_path, col, x, y = path_full
+        if new_path:
+            selection.unselect_all()
+            selection.select_path(new_path)
+        
+        model, tree_iter = selection.get_selected()
+        
         if tree_iter is not None:
-            # Open if it's a right click
+            # Create context menu on right-click
             if event.button == 3:
-                filename = model[tree_iter][0]
-                full_path = (self.dirs[dir_id].root_path
+                menu = Gtk.Menu()
+                
+                # Open in default application
+                item_open = Gtk.MenuItem("Open")
+                def open_file(filename):
+                    full_path = (self.dirs[dir_id].root_path
                             .joinpath(self.dirs_cd[dir_id])
                             .joinpath(PurePath(filename)))
-                open_file_external(full_path)
-    
-    def item_selected(self, selection):
-        """ Handle when a file is selected """
-        model, row = selection.get_selected()
-        if row is not None:
-            print("File: " + model[row][0])
+                    open_file_external(full_path)
+                item_open.connect("activate", lambda x: open_file(model[tree_iter][0]))
+                menu.append(item_open)
+                
+                # Find matches
+                item_find_matches = Gtk.MenuItem("Show Matches")
+                
+                file_index = model[tree_iter][3]
+                file_ = self.dirs[dir_id].directory_map[self.dirs_cd[dir_id]][file_index]
+                def show_matches(file_):
+                    # Find the File object using the file index of the current directory
+                    # Look up matches
+                    if file_ in self.match_dict:
+                        for other_file in self.match_dict[file_]:
+                            if other_file is not file_:
+                                print(other_file.get_path())
+                if file_ in self.match_dict:
+                    item_find_matches.connect("activate", lambda x: show_matches(file_))
+                else:
+                    item_find_matches.set_sensitive(False)
+                menu.append(item_find_matches)
+                
+                menu.show_all()
+                menu.popup_at_pointer(None)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
