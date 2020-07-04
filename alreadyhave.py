@@ -405,6 +405,7 @@ class AppWindow(Gtk.Window):
                 def show_matches(file_):
                     # Find the File object using the file index of the current directory
                     # Look up matches
+                    print("\nMatches:")
                     if file_ in self.match_dict:
                         for other_file in self.match_dict[file_]:
                             if other_file is not file_:
