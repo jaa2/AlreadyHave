@@ -115,9 +115,27 @@ class AppWindow(Gtk.Window):
             })
             
             # Create ListStore
-            # Filename, Size, Modified Date, IsDir, row_color
+            # Filename, Size, Modified Date, File Index, row_color
             list_store = Gtk.ListStore(str, GObject.TYPE_INT64, str, GObject.TYPE_INT64, str)
             self.dirs_list_stores.append(list_store)
+            
+            # Set sorting
+            def filename_compare(model, row1, row2, dir_index):
+                sort_column, _ = model.get_sort_column_id()
+                _file1 = self.dirs[dir_index].directory_map[self.dirs_cd[dir_index]][model.get_value(row1, 3)]
+                _file2 = self.dirs[dir_index].directory_map[self.dirs_cd[dir_index]][model.get_value(row2, 3)]
+                
+                if _file1.isdir != _file2.isdir:
+                    return -1 if _file1.isdir else 1
+                
+                if _file1.basename.lower() != _file2.basename.lower():
+                    return -1 if _file1.basename.lower() < _file2.basename.lower() else 1
+                
+                # These should never be equal (cannot have two files named the same)
+                return -1 if _file1.basename < _file2.basename else 1
+            
+            list_store.set_sort_func(0, filename_compare, dir_index)
+            list_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
             
             # Add tree view
             tree_view = Gtk.TreeView(list_store)
@@ -326,12 +344,10 @@ class AppWindow(Gtk.Window):
             for file_ in dir_1.file_list:
                 file1_ignore = self.ignore_file(file_)
                 if file1_ignore:
-                    print(file_.get_path(), "ignored")
                     self.propagate_matched(file_, file1_ignore)
             for file_ in dir_2.file_list:
                 file1_ignore = self.ignore_file(file_)
                 if file1_ignore:
-                    print(file_.get_path(), "ignored")
                     self.propagate_matched(file_, file1_ignore)
                 
         for i in range(len(self.dirs)):
