@@ -9,10 +9,12 @@ import threading
 import pathlib
 from pathlib import PurePath
 import itertools
+import math
 
 # For opening files on a right click
 import subprocess
 import platform
+import time
 
 from model.directory import Directory, File
 
@@ -53,12 +55,23 @@ class AppWindow(Gtk.Window):
         Gtk.Window.__init__(self, title="AlreadyHave")
         self.set_default_size(1200, 600)
         
+        # Application vertical parent box
+        self.vertbox = Gtk.Box()
+        self.vertbox.props.orientation = Gtk.Orientation.VERTICAL
+        self.add(self.vertbox)
+        
+        # Add "find duplicates" progress bar
+        self.cmp_progressbar = Gtk.ProgressBar()
+        self.cmp_progressbar.set_show_text(True)
+        self.cmp_progressbar.set_ellipsize(2)
+        self.cmp_progressbar.set_text("Scanning directories...")
+        self.vertbox.pack_start(self.cmp_progressbar, False, False, 0)
         
         # Box containing each of the "columns" (directories open)
         self.colsbox = Gtk.Box()
         self.colsbox.props.spacing = 5
         self.colsbox.props.homogeneous = True
-        self.add(self.colsbox)
+        self.vertbox.pack_start(self.colsbox, True, True, 0)
         
         self.dir_paths = dirs
         # Match requirements
@@ -305,9 +318,24 @@ class AppWindow(Gtk.Window):
     
     def find_duplicates(self):
         """ Finds duplicate files in separate directories """
-        for dir_1, dir_2 in itertools.combinations(self.dirs, r=2):
+        dir_num_combos = (math.factorial(len(self.dirs))
+                          // math.factorial(2)
+                          // math.factorial(len(self.dirs) - 2))
+        last_updated_time = time.time()
+        # Update progress bar 5 times per second
+        self.cmp_progressbar.show()
+        progress_update_interval = 0.2
+        for dir_combo_i, (dir_1, dir_2) in enumerate(itertools.combinations(self.dirs, r=2)):
             print("dir_1: {} dir_2: {}".format(dir_1, dir_2))
-            for _file in dir_1.file_list:
+            for file_i, _file in enumerate(dir_1.file_list):
+                
+                # Update the progress bar
+                if time.time() - last_updated_time > progress_update_interval:
+                    fraction = (dir_combo_i / dir_num_combos
+                        + (file_i / len(dir_1.file_list)) / dir_num_combos)
+                    self.set_compare_progress(fraction, _file.get_path())
+                    last_updated_time = time.time()
+                
                 # Use the size map to reduce the number of checks required
                 # by a large proportion to begin with
                 if _file.size not in dir_2.size_map:
@@ -349,6 +377,8 @@ class AppWindow(Gtk.Window):
                 file1_ignore = self.ignore_file(file_)
                 if file1_ignore:
                     self.propagate_matched(file_, file1_ignore)
+        
+        self.cmp_progressbar.hide()
                 
         for i in range(len(self.dirs)):
             GLib.idle_add(self.list_dir_contents, i, PurePath("."))
@@ -357,6 +387,11 @@ class AppWindow(Gtk.Window):
         """ Sets the progress of one of the directories """
         self.progress_bars[dir_id].set_fraction(fraction)
         self.progress_bars[dir_id].set_text(str(text))
+    
+    def set_compare_progress(self, fraction, text):
+        """ Sets the progress of directory comparison """
+        self.cmp_progressbar.set_fraction(fraction)
+        self.cmp_progressbar.set_text(str(text))
     
     def row_activated(self, tree_view, path, column):
         dir_id = self.tree_views.index(tree_view)
