@@ -369,6 +369,7 @@ class AppWindow(Gtk.Window):
                             self.match_dict[_file2] = self.match_dict[_file]
             
             # Ignore files that were not matched before
+            self.cmp_progressbar.set_text("Checking for ignored files...")
             for file_ in dir_1.file_list:
                 file1_ignore = self.ignore_file(file_)
                 if file1_ignore:
