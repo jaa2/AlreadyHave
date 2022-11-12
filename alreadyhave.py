@@ -151,7 +151,7 @@ class AppWindow(Gtk.Window):
             list_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
             
             # Add tree view
-            tree_view = Gtk.TreeView(list_store)
+            tree_view = Gtk.TreeView(model=list_store)
             self.tree_views.append(tree_view)
             
             for i, column_title in [(0, "Filename"), (1, "Size"), (2, "Last Modified")]:
@@ -424,7 +424,7 @@ class AppWindow(Gtk.Window):
                 menu = Gtk.Menu()
                 
                 # Open in default application
-                item_open = Gtk.MenuItem("Open")
+                item_open = Gtk.MenuItem(label="Open")
                 def open_file(filename):
                     full_path = (self.dirs[dir_id].root_path
                             .joinpath(self.dirs_cd[dir_id])
@@ -434,7 +434,7 @@ class AppWindow(Gtk.Window):
                 menu.append(item_open)
                 
                 # Find matches
-                item_find_matches = Gtk.MenuItem("Show Matches")
+                item_find_matches = Gtk.MenuItem(label="Show Matches")
                 
                 file_index = model[tree_iter][3]
                 file_ = self.dirs[dir_id].directory_map[self.dirs_cd[dir_id]][file_index]
